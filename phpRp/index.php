@@ -156,7 +156,7 @@ foreach($providers as $provider) {
 }
 ?>
 </select> <br/>
-or Enter OP URL : <input type='text' name='identifier' value=''>
+or Enter OP URL : <input type='text' name='identifier' value='' style='width:500px'>
 <?php
     echo generate_tab_html();
 ?>
@@ -357,7 +357,7 @@ EOF;
 
 
 function handle_implicit_callback() {
-    global $g_error, $g_info;
+    global $g_error, $g_info, $g_userinfo_response;
 
     $code = $_REQUEST['code'];
     $token = $_REQUEST['access_token'];
@@ -379,42 +379,50 @@ function handle_implicit_callback() {
     }
     if($id_token) {
         $unpacked_id_token = rp_decrypt_verify_id_token($id_token);
-        $bit_length = substr($unpacked_id_token['jws'][0]['alg'], 2);
-        switch($bit_length) {
-            case '384':
-                $hash_alg = 'sha384';
-                break;
-            case '512':
-                $hash_alg = 'sha512';
-                break;
-            case '256':
-            default:
-                $hash_alg = 'sha256';
-            break;
-        }
-        $hash_length = (int) ((int) $bit_length / 2) / 8;
-        if($unpacked_id_token['jws'][1]['at_hash']) {
-            $g_info .= "ID Token contains at_hash\n";
-            if(!$token)
-                $g_error .= "Access Token not found with ID Token response\n";
-            else {
-                if(base64url_encode(substr(hash($hash_alg, $token, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['at_hash'])
-                    $g_info .= "Access Token Hash Verified\n";
-                else
-                    $g_error .= "Access Token Hash Verification Failed for access token : {$token}\n";
+        if($unpacked_id_token) {
+            $bit_length = substr($unpacked_id_token['jws'][0]['alg'], 2);
+            switch($bit_length) {
+                case '384':
+                    $hash_alg = 'sha384';
+                    break;
+                case '512':
+                    $hash_alg = 'sha512';
+                    break;
+                case '256':
+                default:
+                    $hash_alg = 'sha256';
+                    break;
             }
-        }
+            $hash_length = (int) ((int) $bit_length / 2) / 8;
+            if($unpacked_id_token['jws'][1]['at_hash']) {
+                $g_info .= "ID Token contains at_hash\n";
+                if(!$token)
+                    $g_error .= "Access Token not found with ID Token response\n";
+                else {
+                    if(base64url_encode(substr(hash($hash_alg, $token, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['at_hash'])
+                        $g_info .= "Access Token Hash Verified\n";
+                    else
+                        $g_error .= "Access Token Hash Verification Failed for access token : {$token}\n";
+                }
+            }
 
-        if($unpacked_id_token['jws'][1]['c_hash']) {
-            $g_info .= "ID Token contains c_hash\n";
-            if(!$code)
-                $g_error .= "Code not found with ID Token response\n";
-            else {
-                if(base64url_encode(substr(hash($hash_alg, $code, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['c_hash'])
-                    $g_info .= "Code Hash Verified\n";
-                else
-                    $g_error .= "Code Hash Verification Failed for code {$code}\n";
+            if($unpacked_id_token['jws'][1]['c_hash']) {
+                $g_info .= "ID Token contains c_hash\n";
+                if(!$code)
+                    $g_error .= "Code not found with ID Token response\n";
+                else {
+                    if(base64url_encode(substr(hash($hash_alg, $code, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['c_hash'])
+                        $g_info .= "Code Hash Verified\n";
+                    else
+                        $g_error .= "Code Hash Verification Failed for code {$code}\n";
+                }
             }
+
+            if($g_userinfo_response) {
+                if($g_userinfo_response['sub'] != $unpacked_id_token['jws'][1]['sub'])
+                    $g_error .= 'Invalid UserInfo - sub identifier differs from ID Token sub';
+            }
+
         }
     }
 
@@ -484,7 +492,7 @@ function rp2op_jwt_sign_encrypt($provider, $data, $sig_alg, $enc_algs = NULL) {
 }
 
 function handle_callback() {
-  global $g_error, $g_info;
+  global $g_error, $g_info, $g_userinfo_response;
 
   try {
       if($_REQUEST['error'])
@@ -615,42 +623,50 @@ function handle_callback() {
           if(isset($id_token)) {
               $g_info .= "{$id_token}\n";
               $unpacked_id_token = rp_decrypt_verify_id_token($id_token);
-              $bit_length = substr($unpacked_id_token['jws'][0]['alg'], 2);
-              switch($bit_length) {
-                  case '384':
-                      $hash_alg = 'sha384';
-                      break;
-                  case '512':
-                      $hash_alg = 'sha512';
-                      break;
-                  case '256':
-                  default:
-                      $hash_alg = 'sha256';
-                      break;
-              }
-              $hash_length = (int) ((int) $bit_length / 2) / 8;
-              if($unpacked_id_token['jws'][1]['at_hash']) {
-                  $g_info .= "ID Token contains at_hash\n";
-                  if(!$token)
-                      $g_error .= "Access Token not found with ID Token response\n";
-                  else {
-                      if(base64url_encode(substr(hash($hash_alg, $token, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['at_hash'])
-                          $g_info .= "Access Token Hash Verified\n";
+              if($unpacked_id_token) {
+                  $bit_length = substr($unpacked_id_token['jws'][0]['alg'], 2);
+                  switch($bit_length) {
+                      case '384':
+                          $hash_alg = 'sha384';
+                          break;
+                      case '512':
+                          $hash_alg = 'sha512';
+                          break;
+                      case '256':
+                      default:
+                          $hash_alg = 'sha256';
+                          break;
+                  }
+                  $hash_length = (int) ((int) $bit_length / 2) / 8;
+                  if($unpacked_id_token['jws'][1]['at_hash']) {
+                      $g_info .= "ID Token contains at_hash\n";
+                      if(!$token)
+                          $g_error .= "Access Token not found with ID Token response\n";
                       else {
-                          $g_error .= "Access Token Hash Verification Failed for access token : {$token}.\n";
+                          if(base64url_encode(substr(hash($hash_alg, $token, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['at_hash'])
+                              $g_info .= "Access Token Hash Verified\n";
+                          else {
+                              $g_error .= "Access Token Hash Verification Failed for access token : {$token}.\n";
+                          }
                       }
                   }
-              }
 
-              if($unpacked_id_token['jws'][1]['c_hash']) {
-                  $g_info .= "ID Token contains c_hash\n";
-                  if(!$code)
-                      $g_error .= "Code not found with ID Token response\n";
-                  else {
-                      if(base64url_encode(substr(hash($hash_alg, $code, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['c_hash'])
-                          $g_info .= "Code Hash Verified\n";
-                      else
-                          $g_error .= "Code Hash Verification Failed for code {$code}\n";
+                  if($unpacked_id_token['jws'][1]['c_hash']) {
+                      $g_info .= "ID Token contains c_hash\n";
+                      if(!$code)
+                          $g_error .= "Code not found with ID Token response\n";
+                      else {
+                          if(base64url_encode(substr(hash($hash_alg, $code, true), 0, $hash_length)) == $unpacked_id_token['jws'][1]['c_hash'])
+                              $g_info .= "Code Hash Verified\n";
+                          else
+                              $g_error .= "Code Hash Verification Failed for code {$code}\n";
+                      }
+                  }
+
+                  // compare sub in Userinfo and ID Token
+                  if($g_userinfo_response) {
+                      if($g_userinfo_response['sub'] != $unpacked_id_token['jws'][1]['sub'])
+                          $g_error .= 'Invalid UserInfo - sub identifier differs from ID Token sub';
                   }
               }
           }
@@ -749,7 +765,7 @@ function get_endpoint_claims($endpoint, $token) {
         default :
             break;
     }
-    $url = $endpoint . (count($query_params)) ? '?' . http_build_query($query_params) : '';
+    $url = $endpoint . (count($query_params) ? '?' . http_build_query($query_params) : '');
     list($code, $data_content_type, $req_out, $response_headers, $data_responseText) = curl_fetch_url($url, $headers, $curl_options, $is_post, $data);
 
     if($code != 200) {
@@ -929,6 +945,79 @@ function rp_decrypt_verify_jwt($jwt) {
     return $response;
 }
 
+
+// verifies ID Token params
+function is_valid_id_token($id_token, $info, &$error) {
+
+    if($id_token && !$info && !is_array($info))
+        return false;
+
+    if(!isset($info['iss']) || !isset($info['client_id']))
+        return false;
+    $jwt_parts = jwt_to_array($id_token);
+    if(!$jwt_parts || !is_array($jwt_parts) || count($jwt_parts) != 3)
+        return false;
+    $idt = $jwt_parts[1];
+    if(!isset($idt['sub'])) {
+        $error = 'No sub';
+        return false;
+    }
+    if(!isset($idt['iss'])) {
+        $error = 'No iss';
+        return false;
+    } else if($idt['iss'] != $info['iss']) {
+        $error = sprintf('Issuers are different : %s != %s', $idt['iss'], $info['iss']);
+        return false;
+    }
+    if(!isset($idt['aud'])) {
+        $error = 'aud not set';
+        return false;
+    } else if(is_array($idt['aud'])) {
+        if(!in_array($info['client_id'], $idt['aud'])) {
+            $error = 'aud does not contain ' . $info['client_id'];
+            return false;
+        }
+    } else if($idt['aud'] != $info['client_id']) {
+        $error = sprintf('Unauthorized aud : %s != %s', $idt['aud'], $info['client_id']);
+        return false;
+    }
+    if(isset($idt['azp']) && $idt['azp'] != $info['client_id']) {
+        $error = sprintf('azp is not client_id : %s != %s', $idt['azp'], $info['client_id']);
+        return false;
+    }
+    if(isset($info['nonce'])) {
+        if(!isset($idt['nonce']) || ($info['nonce'] != $idt['nonce'])) {
+            $error = sprintf("Invalid nonce : %s != %s", $idt['nonce'], $info['nonce']);
+            return false;
+        }
+    }
+
+    $timeOffset = 5 * 60; // 5 minutes
+    if(!isset($idt['iat'])) {
+        $error = 'No iat';
+        return false;
+    } else if($idt['iat'] > time() + $timeOffset) {
+        $error = 'iat > current time';
+        return false;
+    }
+
+    if(!isset($idt['exp'])) {
+        $error = 'No exp';
+        return false;
+    } else if($idt['exp'] < time() - $timeOffset) {
+        $error = 'exp < current time';
+        return false;
+    }
+
+    if($idt['iat'] > $idt['exp']) {
+        $error = 'iat > exp';
+        return false;
+    }
+
+    log_debug("Valid ID Token");
+    return true;
+}
+
 function rp_decrypt_verify_id_token($id_token) {
     global $g_id_response, $g_info, $g_error;
     $response = array();
@@ -942,11 +1031,10 @@ function rp_decrypt_verify_id_token($id_token) {
         if(!$signed_jwt) {
             $g_error .= "Unable to decrypt ID Token response";
             log_error('%s', $g_error);
-            return;
+            return null;
         }
     } else { // signed 
         $signed_jwt = $id_token;
-        $g_info .= "Signed ID Token {$jwt_parts[0]['alg']}\n";
     }
 
     if($signed_jwt) {
@@ -964,6 +1052,20 @@ function rp_decrypt_verify_id_token($id_token) {
             $verified = true;
         log_info("Signature Verification = %d", $verified);
         if($verified) {
+
+            $info = array(
+                            'client_id' => $_SESSION['provider']['client_id'],
+                            'iss' => $_SESSION['provider']['issuer'],
+                            'nonce' => $_SESSION['nonce']
+                         );
+            $error = '';
+
+            if(!is_valid_id_token($signed_jwt, $info, $error)) {
+                $g_error .= 'Invalid ID Token : ' . $error;
+                log_error($g_error);
+                return null;
+            }
+
             if(isset($payload['address']) && is_array($payload['address'])) {
                 if(isset($payload['address']['formatted']))
                     $payload['address'] = $payload['address']['formatted'];
@@ -1095,8 +1197,18 @@ function webfinger_get_provider_info($identifier) {
                 if(isset($link['href'])) {
                     $url = $link['href'] . '/.well-known/openid-configuration';
                     $p_info = doDiscovery($url);
-                    if($p_info)
+                    if($p_info) {
+                        if(!isset($p_info['issuer'])) {
+                            $g_error = 'No issuer in configuration';
+                            throw new Exception($g_error);
+                        }
+                        else if($p_info['issuer'] != $link['href']) {
+                            $g_error = 'Configuration issuer ' . $p_info['issuer'] . ' different from Webfinger issuer ' . $link['href'];
+                            throw new Exception($g_error);
+                        }
+
                         $p_info['url'] = $issuer_url;
+                    }
                     return $p_info;
                 }
             } else {
@@ -1143,6 +1255,8 @@ function register_client($url, $options = array()) {
         );
 
         $curl_options[CURLOPT_POSTFIELDS] = pretty_json(json_encode(array_merge($data, $options)));
+
+        log_debug('register options = %s', $curl_options[CURLOPT_POSTFIELDS]);
         $curl_options[CURLOPT_HTTPHEADER] = array('Content-Type: application/json');
         list($code, $data_content_type, $req_out, $response_headers, $data_responseText) = curl_fetch_url($url, $headers, $curl_options, $is_post);
         if($code != 200) {
@@ -1379,17 +1493,18 @@ function get_update_options($request, $provider_info = array()) {
     
     // returns all options
     foreach($options as $option) {
-        $update[$option] = $r[$option] ? $r[$option] : NULL;
+        if(isset($r[$option]) && $r[$option])
+            $update[$option] = $r[$option];
     }
 
-    if($update['require_auth_time']) {
+    if(isset($update['require_auth_time']) && $update['require_auth_time']) {
         if($update['require_auth_time'] == 'true')
             $update['require_auth_time'] = true;
         else
             $update['require_auth_time'] = false;
     }
 
-    if($update['default_acr_values']) {
+    if(isset($update['default_acr_values']) && $update['default_acr_values']) {
         $update['default_acr_values'] = explode(' ', $update['default_acr_values']);
     }
 
@@ -1442,7 +1557,7 @@ function handle_start() {
     if($identifier) {
         $discovery = webfinger_get_provider_info($identifier);
         if(!$discovery) {
-            $g_error .= "Unable to perform discovery";
+            $g_error .= "<br/>Unable to perform discovery";
             return;
         }
         if(!check_client_update_options($_REQUEST, $discovery))
@@ -1584,6 +1699,8 @@ function handle_start() {
     log_debug('final provider info %s', print_r($provider, true));
     $state = bin2hex(mcrypt_create_iv(16, MCRYPT_DEV_URANDOM ));
     $nonce = bin2hex(mcrypt_create_iv(16, MCRYPT_DEV_URANDOM ));
+    $_SESSION['nonce'] = $nonce;
+    $_SESSION['state'] = $state;
     $response_type = '';
     if($_REQUEST['response_type'])
         $response_type = $_REQUEST['response_type'];
@@ -1901,7 +2018,8 @@ function make_post_data($pairs) {
 
 function get_url($url) {
     global $g_error, $g_headers;
-    
+    log_debug("get_url %s", $url);
+
     $ch = curl_init();
     $g_headers[$ch] = '';
     $curl_options = array(
@@ -1922,7 +2040,7 @@ function get_url($url) {
     unset($g_headers[$ch]);
     curl_close($ch);
 
-    log_debug("GET {$url} - {$req_out}\n{$response_headers}\n{$data_responseText}");
+    log_debug("GET %s - %s\n%s\n%s", $url, $req_out, $response_headers, $data_responseText);
     if($code != 200) {
         if($data_responseText && substr($url, 0, 7) == 'file://')
             return $data_responseText;
@@ -2021,6 +2139,7 @@ $bearer_token_methods = array('bearer', 'post', 'get');
 $bearer_token_options = get_option_html('bearer', $bearer_token_methods, $_SESSION['bearer']);
 
 $sig_algs = array('', 'HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512');
+$idt_sig_algs = array('', 'none', 'HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512');
 $enc_cek_algs = array('', 'RSA1_5', 'RSA-OAEP');
 $enc_plaintext_algs = array('', 'A128GCM', 'A256GCM', 'A128CBC-HS256', 'A256CBC-HS512');
 
@@ -2036,7 +2155,7 @@ $subject_type_options = get_option_html('subject_type', $subject_types, $_SESSIO
 
 $request_object_signing_alg_options = get_option_html('request_object_signing_alg', $sig_algs, $_SESSION['request_object_signing_alg']);
 $userinfo_signed_response_alg_options = get_option_html('userinfo_signed_response_alg', $sig_algs, $_SESSION['userinfo_signed_response_alg']);
-$id_token_signed_response_alg_options = get_option_html('id_token_signed_response_alg', $sig_algs, $_SESSION['id_token_signed_response_alg']);
+$id_token_signed_response_alg_options = get_option_html('id_token_signed_response_alg', $idt_sig_algs, $_SESSION['id_token_signed_response_alg']);
 $require_auth_time_options = get_option_html('require_auth_time', array('', 'true', 'false'), $_SESSION['require_auth_time']);
 
 if($_SESSION['enc'] || true) {
@@ -2299,7 +2418,7 @@ if(isset($_SESSION['session_state']) && isset($_SESSION['provider']['check_sessi
 
 <?php
 } else {
-    log_debug('session = %s', print_r($_SESSION, true));
+ //   log_debug('session = %s', print_r($_SESSION, true));
 }
 ?>
 
