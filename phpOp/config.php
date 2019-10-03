@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-require_once('doctrine_bootstrap.php');
+require_once('doctrine2_bootstrap.php');
 
 
 $status_text = null;
@@ -61,7 +61,7 @@ if(isset($_POST['Db'])) {
         $link = sprintf("<a href='config.php'>Retry</a>");;
     } else {
         $configFileContents = '';
-        $status1 = configureDB(DB_CONF_TEMPLATE, OP_DB_CONF_FILE, $db_host, $db_port, $db_name, $db_user,$db_password, $configFileContents);
+        $status = configureDB(DB_CONF_TEMPLATE, OP_DB_CONF_FILE, $db_host, $db_port, $db_name, $db_user,$db_password, $configFileContents);
         if($status === false) {
             $status_text = sprintf('Unable to write database configuration to file %s. Make sure the web server process has write permission for that directory.', OP_DB_CONF_FILE);
         }
@@ -70,7 +70,7 @@ if(isset($_POST['Db'])) {
                 file_put_contents(RP_DB_CONF_FILE, $configFileContents);
                 $configFileContents = null;
             }
-            require_once('libdb.php');
+            require_once('libdb2.php');
             require_once('migration.php');
 
             $dsn = sprintf('%s://%s:%s@%s:%s/%s', 'mysql', $db_user, $db_password, $db_host, $db_port, $db_name);
